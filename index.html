@@ -73,8 +73,19 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 22rem;gap:1rem;align-items
 .tc-name .team-name{font-size:1.7rem;line-height:1.1}
 .tc-mem{font-weight:700;font-size:1.15rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tcard .stu-score{font-size:3rem}
-.unassigned{grid-column:1/-1;margin:0;color:var(--muted);font-weight:700}
-.unassigned span{font-weight:400}
+/* 한 화면 채우기: 팀 카드가 남는 세로 공간을 나눠 가짐 */
+body{display:flex;flex-direction:column}
+main{flex:1 1 auto;min-height:0}
+.teams{height:100%;grid-auto-rows:1fr;grid-template-columns:repeat(3,minmax(0,1fr))}
+.tcard{height:100%;grid-template-rows:1fr auto;align-items:center;padding:1rem 1.2rem}
+.tc-name .team-name{font-size:2rem}
+.tcard .stu-score{font-size:3.6rem}
+.tcard .dots{gap:.3rem}
+.tcard .dot{font-size:.75rem}
+footer{margin-top:.8rem}
+@media (max-width:1100px){.teams{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:900px){.teams{height:auto;grid-auto-rows:auto}}
+@media (max-width:600px){.teams{grid-template-columns:1fr}}
 .stu-name{font-weight:700;font-size:1.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stu-score{font-family:var(--f-display);font-size:2rem;line-height:1;color:var(--canopy);justify-self:end}
 .stu-score small{font-family:var(--f-body);font-size:.8rem;color:var(--muted);margin-left:.15rem}
@@ -392,9 +403,7 @@ function render(){
   $("undoBtn").disabled=!state.log.length;
   const live=state.teams.filter(t=>t.members.length);
   const cards=live.map(teamButton);
-  const un=unassigned();
-  $("teams").innerHTML=(cards.join("") || `<p class="empty">팀 설정에서 팀을 만들어 주세요.</p>`)
-    + (un.length?`<p class="unassigned">팀 미배정 ${un.length}명: ${un.map(s=>esc(s.name)).join(", ")} <span>· 팀 설정에서 팀에 넣으면 함께 점수를 받습니다</span></p>`:"");
+  $("teams").innerHTML=cards.join("") || `<p class="empty">팀 설정에서 팀을 만들어 주세요.</p>`;
 
   const ranked=live.map(t=>({t,score:scoreOf(t.id),done:doneSet(t.id).size})).sort((a,b)=>b.score-a.score||b.done-a.done);
   $("stuCount").textContent=`${ranked.length}개 팀`;
