@@ -68,6 +68,13 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 22rem;gap:1rem;align-items
 .stu{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.3rem .6rem;align-items:center;text-align:left;
   background:var(--bg);border:2px solid transparent;border-radius:.7rem;padding:.5rem .65rem;position:relative}
 .stu:hover{border-color:var(--canopy)}
+.tcard{background:var(--panel);box-shadow:var(--shadow);border-radius:.9rem;padding:.8rem 1rem;gap:.6rem 1rem}
+.tc-name{display:flex;flex-direction:column;gap:.15rem;min-width:0}
+.tc-name .team-name{font-size:1.7rem;line-height:1.1}
+.tc-mem{font-weight:700;font-size:1.15rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tcard .stu-score{font-size:3rem}
+.unassigned{grid-column:1/-1;margin:0;color:var(--muted);font-weight:700}
+.unassigned span{font-weight:400}
 .stu-name{font-weight:700;font-size:1.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stu-score{font-family:var(--f-display);font-size:2rem;line-height:1;color:var(--canopy);justify-self:end}
 .stu-score small{font-family:var(--f-body);font-size:.8rem;color:var(--muted);margin-left:.15rem}
@@ -229,7 +236,7 @@ footer b{color:var(--title)}
   <div class="prog">
     <div class="eyebrow" id="pEyebrow"></div>
     <h1 id="pTitle"></h1>
-    <div class="meta"><span class="pill" id="pSession"></span><span>FLL BIOGLOW 로봇 미션 · 성공한 미션 누적 점수</span></div>
+    <div class="meta"><span class="pill" id="pSession"></span><span>FLL BIOGLOW 로봇 미션 · 팀별 미션 누적 점수</span></div>
   </div>
   <div class="tools">
     <button class="btn" id="undoBtn" type="button">↶ 마지막 기록 취소</button>
@@ -241,8 +248,8 @@ footer b{color:var(--title)}
 <main>
   <section class="teams" id="teams" aria-label="팀별 점수"></section>
   <aside>
-    <div class="card"><h2>개인 순위 <span id="stuCount"></span></h2><ol class="rank" id="rank"></ol></div>
-    <div class="card"><h2>미션별 성공 <span>성공 학생 수</span></h2><div class="mstat" id="mstat"></div></div>
+    <div class="card"><h2>팀 순위 <span id="stuCount"></span></h2><ol class="rank" id="rank"></ol></div>
+    <div class="card"><h2>미션별 성공 <span>성공한 팀 수</span></h2><div class="mstat" id="mstat"></div></div>
   </aside>
 </main>
 <footer><span><b>교육부</b> · 17개 시·도 교육청</span><span><b>한국과학창의재단</b></span><span><b>호서대학교</b> · <b>강원대학교</b></span></footer>
@@ -350,18 +357,24 @@ const stuById=sid=>state.students.find(s=>s.id===sid);
 const teamOf=sid=>state.teams.find(t=>t.members.includes(sid));
 const findStu=sid=>{ const s=stuById(sid); if(!s) return null; const t=teamOf(sid); return {...s,team:t||{name:"미배정"}}; };
 const unassigned=()=>state.students.filter(s=>!teamOf(s.id));
-const scoreOf=sid=>state.log.filter(e=>e.sid===sid).reduce((a,e)=>a+e.pts,0);
-const doneSet=sid=>new Set(state.log.filter(e=>e.sid===sid).map(e=>e.m));
+// 점수는 팀 단위(tid). 예전 개인 기록(sid)은 그 학생의 현재 팀으로 옮긴다.
+state.log.forEach(e=>{ if(!e.tid&&e.sid){ const t=teamOf(e.sid); if(t) e.tid=t.id; } });
+try{ localStorage.setItem(KEY,JSON.stringify(state)); }catch(e){}
+const teamById=tid=>state.teams.find(t=>t.id===tid);
+const teamLabel=t=>t?`${t.name}`:"삭제된 팀";
+const memberNames=t=>t.members.map(stuById).filter(Boolean).map(s=>s.name).join(" · ");
+const scoreOf=tid=>state.log.filter(e=>e.tid===tid).reduce((a,e)=>a+e.pts,0);
+const doneSet=tid=>new Set(state.log.filter(e=>e.tid===tid).map(e=>e.m));
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const $=id=>document.getElementById(id);
 const pad=n=>String(n).padStart(2,"0");
 
 // ---- 메인 화면 ----
-function stuButton(s){
-  const d=doneSet(s.id);
-  return `<button class="stu" type="button" data-sid="${s.id}" aria-label="${esc(s.name)} 채점하기">
-    <span class="stu-name">${esc(s.name)}</span>
-    <span class="stu-score num">${scoreOf(s.id)}<small>점</small></span>
+function teamButton(t){
+  const d=doneSet(t.id);
+  return `<button class="stu tcard" type="button" data-tid="${t.id}" aria-label="${esc(t.name)} 채점하기">
+    <span class="tc-name"><span class="team-name">${esc(t.name)}</span><span class="tc-mem">${esc(memberNames(t))}</span></span>
+    <span class="stu-score num">${scoreOf(t.id)}<small>점</small></span>
     <span class="dots" aria-label="성공 미션 ${d.size}개">${MISSIONS.map(m=>`<span class="dot ${d.has(m.n)?"on":""}" title="M${pad(m.n)} ${m.name}">${m.n}</span>`).join("")}</span>
   </button>`;
 }
@@ -377,30 +390,26 @@ if($("logoImg").complete && !$("logoImg").naturalWidth){ $("logoImg").hidden=tru
 function render(){
   renderInfo();
   $("undoBtn").disabled=!state.log.length;
-  const cards=state.teams.filter(t=>t.members.length).map(t=>{
-    const total=t.members.reduce((a,sid)=>a+scoreOf(sid),0);
-    return `<article class="team">
-      <div class="team-head"><span class="team-name">${esc(t.name)}</span><span class="team-total">팀 합계 <b class="num">${total}</b>점</span></div>
-      ${t.members.map(stuById).filter(Boolean).map(stuButton).join("")}
-    </article>`;});
+  const live=state.teams.filter(t=>t.members.length);
+  const cards=live.map(teamButton);
   const un=unassigned();
-  if(un.length) cards.push(`<article class="team"><div class="team-head"><span class="team-name" style="color:var(--muted)">팀 미배정</span><span class="team-total">${un.length}명</span></div>${un.map(stuButton).join("")}</article>`);
-  $("teams").innerHTML=cards.join("") || `<p class="empty">팀 설정에서 명단을 입력하세요.</p>`;
+  $("teams").innerHTML=(cards.join("") || `<p class="empty">팀 설정에서 팀을 만들어 주세요.</p>`)
+    + (un.length?`<p class="unassigned">팀 미배정 ${un.length}명: ${un.map(s=>esc(s.name)).join(", ")} <span>· 팀 설정에서 팀에 넣으면 함께 점수를 받습니다</span></p>`:"");
 
-  const ranked=state.students.map(s=>({...s,team:teamOf(s.id),score:scoreOf(s.id),done:doneSet(s.id).size})).sort((a,b)=>b.score-a.score||b.done-a.done);
-  $("stuCount").textContent=`학생 ${ranked.length}명`;
+  const ranked=live.map(t=>({t,score:scoreOf(t.id),done:doneSet(t.id).size})).sort((a,b)=>b.score-a.score||b.done-a.done);
+  $("stuCount").textContent=`${ranked.length}개 팀`;
   let prev=null, place=0;
-  $("rank").innerHTML = ranked.filter(r=>r.score>0).slice(0,10).map((r,i)=>{
+  $("rank").innerHTML = ranked.filter(r=>r.score>0).map((r,i)=>{
     if(r.score!==prev){place=i+1;prev=r.score;}
-    return `<li><span class="medal">${place}</span><span class="who">${esc(r.name)}<small>${esc(r.team?r.team.name:"")}</small></span><span class="pts num">${r.score}</span></li>`;
-  }).join("") || `<li class="empty">아직 기록이 없습니다. 학생 이름을 눌러 점수를 기록하세요.</li>`;
+    return `<li><span class="medal">${place}</span><span class="who">${esc(r.t.name)}<small>${esc(memberNames(r.t))}</small></span><span class="pts num">${r.score}</span></li>`;
+  }).join("") || `<li class="empty">아직 기록이 없습니다. 팀 카드를 눌러 점수를 기록하세요.</li>`;
 
   $("mstat").innerHTML=MISSIONS.map(m=>{
-    const c=new Set(state.log.filter(e=>e.m===m.n).map(e=>e.sid)).size;
+    const c=new Set(state.log.filter(e=>e.m===m.n&&e.tid&&teamById(e.tid)).map(e=>e.tid)).size;
     return `<div class="ms ${c?"hit":"zero"}" title="${m.name}"><b>M${pad(m.n)}</b><span class="num">${c}</span></div>`;
   }).join("");
 }
-$("teams").addEventListener("click",e=>{ const b=e.target.closest(".stu"); if(b) openScore(b.dataset.sid); });
+$("teams").addEventListener("click",e=>{ const b=e.target.closest(".stu"); if(b) openScore(b.dataset.tid); });
 
 // ---- 모달 ----
 let modalClose=null;
@@ -413,12 +422,12 @@ function closeModal(){ $("modalRoot").innerHTML=""; const f=modalClose; modalClo
 document.addEventListener("keydown",e=>{ if(e.key!=="Escape") return; if($("codesView")) { $("codesView").remove(); return; } if($("ov")) closeModal(); });
 
 // ---- 채점 ----
-let cur={sid:null,m:null,sel:{}};
-function openScore(sid){
-  cur={sid,m:null,sel:{}};
-  const s=findStu(sid);
-  openModal(`<div class="m-head"><h3><em>${esc(s.name)}</em> <span style="font-size:1rem;color:var(--muted)">${esc(s.team.name)}</span> · 성공한 미션 선택</h3>
-      <span class="num" style="font-weight:700">현재 <span style="font-family:var(--f-display);font-size:1.5rem;color:var(--canopy)">${scoreOf(sid)}</span>점</span>
+let cur={tid:null,m:null,sel:{}};
+function openScore(tid){
+  cur={tid,m:null,sel:{}};
+  const t=teamById(tid);
+  openModal(`<div class="m-head"><h3><em>${esc(t.name)}</em> <span style="font-size:1rem;color:var(--muted)">${esc(memberNames(t))}</span> · 성공한 미션 선택</h3>
+      <span class="num" style="font-weight:700">현재 <span style="font-family:var(--f-display);font-size:1.5rem;color:var(--canopy)">${scoreOf(tid)}</span>점</span>
       <button class="btn" type="button" id="closeScore">닫기</button></div>
     <div class="score-wrap"><div class="mgrid" id="mgrid"></div><div class="detail" id="detail"></div></div>`);
   $("closeScore").onclick=closeModal;
@@ -435,7 +444,7 @@ function itemValue(m,it){
 }
 function total(m){ return m.items.reduce((a,it)=>a+itemValue(m,it),0); }
 function drawScore(){
-  const d=doneSet(cur.sid);
+  const d=doneSet(cur.tid);
   $("mgrid").innerHTML=MISSIONS.map(m=>`<button type="button" class="mtile ${d.has(m.n)?"done":""} ${cur.m===m.n?"sel":""}" data-m="${m.n}">
     <span class="no">M${pad(m.n)}</span><span class="nm">${m.name}</span><span class="mx">최대 ${m.max}점</span></button>`).join("");
   const m=MISSIONS.find(x=>x.n===cur.m);
@@ -476,14 +485,14 @@ function commit(m){
   const pts=total(m); if(!pts) return;
   const detail=m.items.filter(it=>itemValue(m,it)>0).map(it=>it.type==="count"?`${it.label} ${cur.sel[it.k]}개`:it.label).join(" · ");
   const id=(state.log.reduce((a,e)=>Math.max(a,e.id),0))+1;
-  state.log.push({id,sid:cur.sid,m:m.n,pts,detail,t:Date.now()});
+  state.log.push({id,tid:cur.tid,m:m.n,pts,detail,t:Date.now()});
   save();
-  const sid=cur.sid, s=findStu(sid);
-  closeModal(); render(); celebrate(sid,pts);
-  toast(`${s.name} · M${pad(m.n)} ${m.name} +${pts}점`);
+  const tid=cur.tid, tm=teamById(tid);
+  closeModal(); render(); celebrate(tid,pts);
+  toast(`${tm.name} · M${pad(m.n)} ${m.name} +${pts}점`);
 }
-function celebrate(sid,pts){
-  const el=document.querySelector(`.stu[data-sid="${sid}"]`); if(!el) return;
+function celebrate(tid,pts){
+  const el=document.querySelector(`.stu[data-tid="${tid}"]`); if(!el) return;
   el.classList.add("flash");
   const p=document.createElement("span"); p.className="pop"; p.textContent=`+${pts}`; el.appendChild(p);
   setTimeout(()=>{p.remove();el.classList.remove("flash");},1500);
@@ -494,9 +503,8 @@ function toast(msg){ const t=$("toast"); t.textContent=msg; t.hidden=false; clea
 // ---- 되돌리기 ----
 $("undoBtn").onclick=()=>{
   const last=state.log[state.log.length-1]; if(!last) return;
-  const s=findStu(last.sid);
   openModal(`<div class="m-head"><h3>마지막 기록을 취소할까요?</h3></div>
-    <p style="margin:0;font-size:1.1rem"><b>${esc(s?s.name:"?")}</b> · M${pad(last.m)} ${MISSIONS[last.m-1].name} · <b>+${last.pts}점</b></p>
+    <p style="margin:0;font-size:1.1rem"><b>${esc(teamLabel(teamById(last.tid)))}</b> · M${pad(last.m)} ${MISSIONS[last.m-1].name} · <b>+${last.pts}점</b></p>
     <div class="row"><span class="spacer"></span><button class="btn" type="button" id="no">아니요</button><button class="btn danger" type="button" id="yes">기록 취소</button></div>`,"narrow");
   $("no").onclick=closeModal;
   $("yes").onclick=()=>{ state.log.pop(); save(); closeModal(); render(); toast("마지막 기록을 취소했습니다"); };
@@ -505,8 +513,8 @@ $("undoBtn").onclick=()=>{
 // ---- 기록 보기 ----
 function openLog(){
   const fmt=t=>new Date(t).toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit",hour12:false});
-  const items=[...state.log].reverse().map(e=>{ const s=findStu(e.sid);
-    return `<li><time>${fmt(e.t)}</time><span class="d"><b>${esc(s?s.name:"?")}</b> · M${pad(e.m)} ${MISSIONS[e.m-1].name}<small>${esc(e.detail||"")}</small></span><span class="p num">+${e.pts}</span><button type="button" data-del="${e.id}">삭제</button></li>`;}).join("");
+  const items=[...state.log].reverse().map(e=>{
+    return `<li><time>${fmt(e.t)}</time><span class="d"><b>${esc(teamLabel(teamById(e.tid)))}</b> · M${pad(e.m)} ${MISSIONS[e.m-1].name}<small>${esc(e.detail||"")}</small></span><span class="p num">+${e.pts}</span><button type="button" data-del="${e.id}">삭제</button></li>`;}).join("");
   openModal(`<div class="m-head"><h3>점수 기록 <span style="font-size:1rem;color:var(--muted)">${state.log.length}건</span></h3>
     <button class="btn" type="button" id="csvBtn">결과표 복사</button><button class="btn" type="button" id="closeLog">닫기</button></div>
     ${items?`<ul class="loglist" id="loglist">${items}</ul>`:`<p class="empty">아직 기록이 없습니다.</p>`}
@@ -520,10 +528,10 @@ function openLog(){
 }
 $("logBtn").onclick=openLog;
 function resultTable(){
-  const head=["번호","이름","팀","설문 코드","총점",...MISSIONS.map(m=>`M${pad(m.n)}`)];
-  const rows=state.students.map((s,i)=>{ const t=teamOf(s.id);
-    return [i+1,s.name,t?t.name:"",s.code,scoreOf(s.id),...MISSIONS.map(m=>state.log.filter(e=>e.sid===s.id&&e.m===m.n).reduce((a,e)=>a+e.pts,0)||"")]; });
-  return [head,...rows].map(r=>r.join("\t")).join("\n");
+  const head=["팀","팀원","총점",...MISSIONS.map(m=>`M${pad(m.n)}`)];
+  const rows=state.teams.filter(t=>t.members.length).map(t=>[t.name,memberNames(t),scoreOf(t.id),...MISSIONS.map(m=>state.log.filter(e=>e.tid===t.id&&e.m===m.n).reduce((a,e)=>a+e.pts,0)||"")]);
+  const stu=[[],["번호","이름","팀","팀 점수","설문 코드"],...state.students.map((s,i)=>{ const t=teamOf(s.id); return [i+1,s.name,t?t.name:"",t?scoreOf(t.id):"",s.code]; })];
+  return [head,...rows,...stu].map(r=>r.join("\t")).join("\n");
 }
 function copyText(text,msg){
   const fallback=()=>{
@@ -542,7 +550,7 @@ function openSetup(){
         <button class="btn" type="button" id="addTeam">+ 팀 추가</button>
         <button class="btn" type="button" id="shuffleBtn">무작위로 짝 짓기</button>
         <button class="btn" type="button" id="clearTeams">모두 미배정으로</button></div>
-      <p class="help">이름을 끌어서 팀 칸에 넣으세요. 끌기가 어려우면 이름을 한 번 누른 뒤 넣을 팀을 누르면 됩니다. 팀에 있는 이름 위에 놓으면 두 학생 자리가 바뀝니다.<br>팀을 바꿔도 학생 개인 점수는 그대로 따라갑니다.</p>
+      <p class="help">이름을 끌어서 팀 칸에 넣으세요. 끌기가 어려우면 이름을 한 번 누른 뒤 넣을 팀을 누르면 됩니다. 팀에 있는 이름 위에 놓으면 두 학생 자리가 바뀝니다.<br>점수는 팀에 쌓입니다. 학생을 다른 팀으로 옮겨도 팀 점수는 그 팀에 남습니다.</p>
       <div class="builder" id="builder"></div>
     </section>
     <details class="sec"><summary>프로그램 정보 (상단 제목)</summary>
@@ -581,7 +589,6 @@ function openSetup(){
     const ids=new Set(students.map(s=>s.id));
     state.students=students;
     state.teams.forEach(t=>t.members=t.members.filter(id=>ids.has(id)));
-    state.log=state.log.filter(e=>ids.has(e.sid));
     commitTeams(); toast(`학생 ${students.length}명을 적용했습니다`);
   };
   armButton($("resetBtn"),"한 번 더 누르면 모든 점수가 지워집니다",()=>{ state.log=[]; save(); render(); closeModal(); toast("모든 점수를 지웠습니다"); });
@@ -670,6 +677,7 @@ function bindBuilder(){
   b.addEventListener("click",e=>{
     if(e.target.closest(".chip")||e.target.closest("input")) return;
     const del=e.target.closest("[data-deltm]");
+    if(del && scoreOf(del.dataset.deltm)>0 && !del.dataset.armed){ del.dataset.armed="1"; del.textContent="삭제?"; del.style.width="auto"; del.style.color="var(--danger)"; toast("이 팀에는 점수가 있습니다. 한 번 더 누르면 팀과 점수가 함께 사라집니다."); return; }
     if(del){ state.teams=state.teams.filter(t=>t.id!==del.dataset.deltm); picked=null; commitTeams(); return; }
     const zone=e.target.closest("[data-drop]");
     if(zone&&picked){ const s=picked; picked=null; placeStudent(s,zone.dataset.drop,null); drawBuilder(); }
