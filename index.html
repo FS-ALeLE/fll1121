@@ -77,14 +77,26 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 22rem;gap:1rem;align-items
 body{display:flex;flex-direction:column}
 main{flex:1 1 auto;min-height:0}
 .teams{height:100%;grid-auto-rows:1fr;grid-template-columns:repeat(3,minmax(0,1fr))}
-.tcard{height:100%;grid-template-rows:1fr auto;align-items:center;padding:1rem 1.2rem}
-.tc-name .team-name{font-size:2rem}
-.tcard .stu-score{font-size:3.6rem}
-.tcard .dots{gap:.3rem}
-.tcard .dot{font-size:.75rem}
+/* 카드 크기에 맞춰 글자 크기를 비례 조정 (컨테이너 쿼리 단위) */
+.tcard{height:100%;container-type:size;grid-template-rows:1fr auto;align-items:center;
+  padding:min(6cqh,1.4rem) min(4.5cqw,1.6rem) min(5cqh,1.2rem);gap:min(3cqh,.8rem) 1rem}
+.tc-name{gap:min(2cqh,.4rem)}
+.tc-name .team-name{font-size:clamp(1.3rem,min(11cqw,19cqh),4.5rem);line-height:1.05}
+.tc-mem{font-size:clamp(.95rem,min(6.2cqw,10.5cqh),2.4rem);line-height:1.2}
+.tcard .stu-score{font-size:clamp(2.4rem,min(27cqw,46cqh),10rem);line-height:.9;letter-spacing:-.02em}
+.tcard .stu-score small{font-size:.22em;margin-left:.2em}
+.tcard .dots{gap:min(.9cqw,.35rem)}
+.tcard .dot{font-size:clamp(.6rem,min(2.8cqw,5cqh),1.2rem)}
 footer{margin-top:.8rem}
+.rank li{padding:.5rem .6rem}
+.rank .who{font-size:1.2rem}
+.rank .who small{font-size:.8rem}
+.rank .pts{font-size:1.6rem}
+.rank .medal{font-size:1.4rem}
 @media (max-width:1100px){.teams{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:900px){.teams{height:auto;grid-auto-rows:auto}}
+@media (max-width:900px){.teams{height:auto;grid-auto-rows:auto}
+  .tcard{container-type:normal;padding:.9rem 1rem;gap:.6rem 1rem}
+  .tc-name .team-name{font-size:1.7rem}.tc-mem{font-size:1.1rem}.tcard .stu-score{font-size:3rem}.tcard .dot{font-size:.7rem}}
 @media (max-width:600px){.teams{grid-template-columns:1fr}}
 .stu-name{font-weight:700;font-size:1.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stu-score{font-family:var(--f-display);font-size:2rem;line-height:1;color:var(--canopy);justify-self:end}
